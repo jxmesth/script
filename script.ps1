@@ -144,5 +144,17 @@ $packages = @(
 
 choco install $packages -y --no-progress
 
+irm https://astral.sh/uv/install.ps1 | iex
+
+Write-Host "Refreshing PATH..."
+refreshenv 2>$null
+
+$env:Path =
+    [Environment]::GetEnvironmentVariable("Path","Machine") + ";" +
+    [Environment]::GetEnvironmentVariable("Path","User")
+
+uv python install 
+
 
 Write-Host "`n=== Done. A restart may be required for some changes. ===`n" -ForegroundColor Green
+
