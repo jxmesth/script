@@ -146,26 +146,120 @@ choco install $packages -y --no-progress
 
 
 # ----------------------------
-# 7) Install Google Chrome (direct download)
+# 7) Configure qBittorrent (write config before first launch)
+# ----------------------------
+Write-Host "Config: writing qBittorrent settings..." -ForegroundColor Yellow
+
+$qbConfigDir  = "$env:APPDATA\qBittorrent"
+$qbConfigFile = "$qbConfigDir\qBittorrent.ini"
+
+if (-not (Test-Path $qbConfigDir)) {
+    New-Item -Path $qbConfigDir -ItemType Directory -Force | Out-Null
+}
+
+# If a config already exists, back it up first
+if (Test-Path $qbConfigFile) {
+    Copy-Item $qbConfigFile "$qbConfigFile.bak" -Force
+    Write-Host "  Existing config backed up to qBittorrent.ini.bak" -ForegroundColor DarkGray
+}
+
+$qbConfig = @"
+[AddNewTorrentDialog]
+SavePathHistory=C:\\Users\\hzfa\\Downloads\\z
+DialogSize=@Size(900 680)
+DownloadPathHistory=C:\\Users\\hzfa\\Downloads\\temp
+RememberLastSavePath=true
+
+[LegalNotice]
+Accepted=true
+
+[Application]
+FileLogger\AgeType=1
+GUI\Notifications\TorrentAdded=false
+FileLogger\DeleteOld=true
+FileLogger\Age=1
+FileLogger\Path=C:\\Users\\hzfa\\AppData\\Local\\qBittorrent\\logs
+FileLogger\MaxSizeBytes=66560
+FileLogger\Backup=true
+FileLogger\Enabled=true
+
+[BitTorrent]
+Session\QueueingSystemEnabled=false
+Session\ShareLimitAction=Remove
+Session\TempPathEnabled=true
+Session\GlobalUPSpeedLimit=0
+Session\GlobalMaxRatio=0
+Session\DefaultSavePath=C:\\Users\\hzfa\\Downloads\\z
+Session\Port=35196
+Session\SSL\Port=60785
+Session\StartPaused=false
+
+[GUI]
+Log\Enabled=false
+DownloadTrackerFavicon=false
+MainWindow\FiltersSidebarWidth=163
+
+[Meta]
+MigrationVersion=8
+
+[Preferences]
+General\CloseToTrayNotified=true
+General\Locale=en
+
+[Core]
+AutoDeleteAddedTorrentFile=IfAdded
+
+[RSS]
+AutoDownloader\DownloadRepacks=true
+AutoDownloader\SmartEpisodeFilter=s(\\d+)e(\\d+), (\\d+)x(\\d+), "(\\d{4}[.\\-]\\d{1,2}[.\\-]\\d{1,2})", "(\\d{1,2}[.\\-]\\d{1,2}[.\\-]\\d{4})"
+
+[TransferList]
+SubSortOrder=1
+SubSortColumn=0
+"@
+
+Set-Content -Path $qbConfigFile -Value $qbConfig -Encoding UTF8
+Write-Host "qBittorrent config written to: $qbConfigFile" -ForegroundColor Green
+
+
+# ----------------------------
+# 8) Install Google Chrome (direct download, installer kept on Desktop)
 # ----------------------------
 Write-Host "Apps: downloading and installing Google Chrome..." -ForegroundColor Yellow
 
-$chromeTmp = "$env:TEMP\ChromeStandaloneSetup64.exe"
+# Resolve the Desktop path for the current user (works even if OneDrive has moved it)
+$desktopPath = [Environment]::GetFolderPath("Desktop")
+$chromeInstaller = "$desktopPath\ChromeStandaloneSetup64.exe"
 
 try {
     Invoke-WebRequest -Uri "https://dl.google.com/chrome/install/ChromeStandaloneSetup64.exe" `
-        -OutFile $chromeTmp -UseBasicParsing
-    Start-Process -FilePath $chromeTmp -ArgumentList "/silent /install" -Wait
-    Write-Host "Chrome installed successfully." -ForegroundColor Green
+        -OutFile $chromeInstaller -UseBasicParsing
+    Start-Process -FilePath $chromeInstaller -ArgumentList "/silent /install" -Wait
+    Write-Host "Chrome installed. Installer left at: $chromeInstaller" -ForegroundColor Green
 } catch {
     Write-Warning "Chrome installation failed: $_"
-} finally {
-    if (Test-Path $chromeTmp) { Remove-Item $chromeTmp -Force }
 }
 
 
 # ----------------------------
-# 8) Install uv and Python
+# 9) Install Google Drive (direct download, installer kept on Desktop)
+# ----------------------------
+Write-Host "Apps: downloading and installing Google Drive..." -ForegroundColor Yellow
+
+$gdriveInstaller = "$desktopPath\GoogleDriveSetup.exe"
+
+try {
+    Invoke-WebRequest -Uri "https://dl.google.com/drive-file-stream/GoogleDriveSetup.exe" `
+        -OutFile $gdriveInstaller -UseBasicParsing
+    Start-Process -FilePath $gdriveInstaller -ArgumentList "--silent --desktop_shortcut" -Wait
+    Write-Host "Google Drive installed. Installer left at: $gdriveInstaller" -ForegroundColor Green
+} catch {
+    Write-Warning "Google Drive installation failed: $_"
+}
+
+
+# ----------------------------
+# 10) Install uv and Python
 # ----------------------------
 Write-Host "Apps: installing uv (Python manager)..." -ForegroundColor Yellow
 
