@@ -32,6 +32,7 @@ Write-Host "`n=== Starting setup (Hardening + Apps + UI + Edge) ===`n" -Foregrou
 #    - Disable NTLMv1
 #    - Disable Guest account
 #    - Disable WDigest credential caching
+#    - Disable Windows Audio service
 # ----------------------------
 
 Write-Host "Hardening: disabling old SSL/TLS..." -ForegroundColor Yellow
@@ -81,6 +82,10 @@ $wdigestPath = "HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\WDigest
 if (-not (Test-Path $wdigestPath)) { New-Item -Path $wdigestPath -Force | Out-Null }
 New-ItemProperty -Path $wdigestPath -Name "UseLogonCredential" -PropertyType DWord -Value 0 -Force | Out-Null
 
+Write-Host "Hardening: stopping and disabling Windows Audio service..." -ForegroundColor Yellow
+Stop-Service -Name "AudioSrv" -Force -ErrorAction SilentlyContinue
+Set-Service  -Name "AudioSrv" -StartupType Disabled
+
 
 # ----------------------------
 # 3) Windows Dark Mode
@@ -112,17 +117,17 @@ Write-Host "Edge: applying policies (no first-run, Google search)..." -Foregroun
 $edgePolicy = "HKLM:\SOFTWARE\Policies\Microsoft\Edge"
 New-Item -Path $edgePolicy -Force | Out-Null
 
-New-ItemProperty -Path $edgePolicy -Name "HideFirstRunExperience"        -PropertyType DWord  -Value 1          -Force | Out-Null
-New-ItemProperty -Path $edgePolicy -Name "BrowserSignin"                 -PropertyType DWord  -Value 0          -Force | Out-Null
-New-ItemProperty -Path $edgePolicy -Name "NewTabPageContentEnabled"      -PropertyType DWord  -Value 0          -Force | Out-Null
-New-ItemProperty -Path $edgePolicy -Name "PromotionalTabsEnabled"        -PropertyType DWord  -Value 0          -Force | Out-Null
+New-ItemProperty -Path $edgePolicy -Name "HideFirstRunExperience"          -PropertyType DWord  -Value 1            -Force | Out-Null
+New-ItemProperty -Path $edgePolicy -Name "BrowserSignin"                   -PropertyType DWord  -Value 0            -Force | Out-Null
+New-ItemProperty -Path $edgePolicy -Name "NewTabPageContentEnabled"        -PropertyType DWord  -Value 0            -Force | Out-Null
+New-ItemProperty -Path $edgePolicy -Name "PromotionalTabsEnabled"          -PropertyType DWord  -Value 0            -Force | Out-Null
 
-New-ItemProperty -Path $edgePolicy -Name "DefaultSearchProviderEnabled"  -PropertyType DWord  -Value 1          -Force | Out-Null
-New-ItemProperty -Path $edgePolicy -Name "DefaultSearchProviderName"     -PropertyType String -Value "Google"   -Force | Out-Null
-New-ItemProperty -Path $edgePolicy -Name "DefaultSearchProviderKeyword"  -PropertyType String -Value "google.com" -Force | Out-Null
-New-ItemProperty -Path $edgePolicy -Name "DefaultSearchProviderSearchURL" -PropertyType String -Value "https://www.google.com/search?q={searchTerms}" -Force | Out-Null
+New-ItemProperty -Path $edgePolicy -Name "DefaultSearchProviderEnabled"    -PropertyType DWord  -Value 1            -Force | Out-Null
+New-ItemProperty -Path $edgePolicy -Name "DefaultSearchProviderName"       -PropertyType String -Value "Google"     -Force | Out-Null
+New-ItemProperty -Path $edgePolicy -Name "DefaultSearchProviderKeyword"    -PropertyType String -Value "google.com" -Force | Out-Null
+New-ItemProperty -Path $edgePolicy -Name "DefaultSearchProviderSearchURL"  -PropertyType String -Value "https://www.google.com/search?q={searchTerms}" -Force | Out-Null
 New-ItemProperty -Path $edgePolicy -Name "DefaultSearchProviderSuggestURL" -PropertyType String -Value "https://www.google.com/complete/search?output=chrome&q={searchTerms}" -Force | Out-Null
-New-ItemProperty -Path $edgePolicy -Name "DefaultSearchProviderIconURL"  -PropertyType String -Value "https://www.google.com/favicon.ico" -Force | Out-Null
+New-ItemProperty -Path $edgePolicy -Name "DefaultSearchProviderIconURL"    -PropertyType String -Value "https://www.google.com/favicon.ico" -Force | Out-Null
 
 
 # ----------------------------
@@ -157,7 +162,9 @@ $packages = @(
     "git",
     "wiztree",
     "tailscale",
-    "vscode"
+    "vscode",
+    "vcredist140",
+    "ffmpeg"
 )
 
 if (-not (Get-Command choco -ErrorAction SilentlyContinue)) {
