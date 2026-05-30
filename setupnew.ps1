@@ -150,12 +150,12 @@ Write-Host "Apps: installing via Chocolatey..." -ForegroundColor Yellow
 
 $packages = @(
     "firefox",
-    "warp",
     "winfsp",
     "rclone",
     "qbittorrent",
     "7zip",
     "git",
+    "wiztree",
     "vscode"
 )
 
