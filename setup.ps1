@@ -163,6 +163,7 @@ $packages = @(
     "wiztree",
     "tailscale",
     "vscode",
+    "nodejs",
     "vcredist140",
     "ffmpeg"
 )
