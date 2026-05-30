@@ -164,6 +164,7 @@ $packages = @(
     "tailscale",
     "vscode",
     "nodejs",
+    "python",
     "vcredist140",
     "ffmpeg"
 )
