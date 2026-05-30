@@ -156,6 +156,7 @@ $packages = @(
     "7zip",
     "git",
     "wiztree",
+    "tailscale",
     "vscode"
 )
 
