@@ -166,6 +166,7 @@ $packages = @(
     "nodejs",
     "python",
     "vcredist140",
+    "powertoys",
     "ffmpeg"
 )
 
