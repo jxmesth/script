@@ -88,7 +88,42 @@ Set-Service  -Name "AudioSrv" -StartupType Disabled
 
 
 # ----------------------------
-# 3) Windows Dark Mode
+# 3) Windows Update policy
+#    - Updates download automatically
+#    - Reboots require manual approval (no forced/scheduled restarts)
+#    - Notifications shown so you know when a restart is pending
+# ----------------------------
+Write-Host "Updates: configuring download-only, no auto-reboot policy..." -ForegroundColor Yellow
+
+$wuPolicy = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU"
+if (-not (Test-Path $wuPolicy)) { New-Item -Path $wuPolicy -Force | Out-Null }
+
+# AUOptions=3 - auto-download, notify for install (never silently installs or reboots)
+# Alternatives: 2=notify before download, 3=auto-download+notify, 4=auto-download+auto-install
+New-ItemProperty -Path $wuPolicy -Name "NoAutoUpdate"          -PropertyType DWord -Value 0 -Force | Out-Null
+New-ItemProperty -Path $wuPolicy -Name "AUOptions"             -PropertyType DWord -Value 3 -Force | Out-Null
+New-ItemProperty -Path $wuPolicy -Name "NoAutoRebootWithLoggedOnUsers" -PropertyType DWord -Value 1 -Force | Out-Null
+New-ItemProperty -Path $wuPolicy -Name "RebootWarningTimeoutEnabled"   -PropertyType DWord -Value 0 -Force | Out-Null
+New-ItemProperty -Path $wuPolicy -Name "ScheduledInstallDay"   -PropertyType DWord -Value 0 -Force | Out-Null
+New-ItemProperty -Path $wuPolicy -Name "ScheduledInstallTime"  -PropertyType DWord -Value 3 -Force | Out-Null
+
+# Block forced reboots via the WindowsUpdate key (separate from AU)
+$wuRoot = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate"
+if (-not (Test-Path $wuRoot)) { New-Item -Path $wuRoot -Force | Out-Null }
+New-ItemProperty -Path $wuRoot -Name "SetActiveHours"         -PropertyType DWord -Value 1 -Force | Out-Null
+New-ItemProperty -Path $wuRoot -Name "ActiveHoursStart"       -PropertyType DWord -Value 6 -Force | Out-Null  # 06:00
+New-ItemProperty -Path $wuRoot -Name "ActiveHoursEnd"         -PropertyType DWord -Value 23 -Force | Out-Null # 23:00
+# Active hours window = 17 hrs; Windows won't auto-reboot during this window.
+# The remaining 1-hr gap (23:00-06:00) is intentionally narrow to minimize surprise reboots.
+# If you want to fully block auto-reboots at ALL times, set ActiveHoursEnd=5 and ActiveHoursStart=6
+# (max 18-hr window) and rely on NoAutoRebootWithLoggedOnUsers above for the rest.
+
+Write-Host "  Updates will download automatically." -ForegroundColor DarkGray
+Write-Host "  Reboots require your manual initiation." -ForegroundColor DarkGray
+
+
+# ----------------------------
+# 4) Windows Dark Mode
 # ----------------------------
 Write-Host "UI: enabling Dark Mode..." -ForegroundColor Yellow
 
@@ -108,7 +143,7 @@ New-ItemProperty -Path $hkdef -Name "SystemUsesLightTheme" -PropertyType DWord -
 
 
 # ----------------------------
-# 4) Microsoft Edge policies
+# 5) Microsoft Edge policies
 #    - Disable first run, nags, content
 #    - Set Google as default search engine
 # ----------------------------
@@ -131,7 +166,7 @@ New-ItemProperty -Path $edgePolicy -Name "DefaultSearchProviderIconURL"    -Prop
 
 
 # ----------------------------
-# 5) Install Chocolatey (if missing)
+# 6) Install Chocolatey (if missing)
 # ----------------------------
 Write-Host "Chocolatey: checking/installing..." -ForegroundColor Yellow
 
@@ -149,7 +184,7 @@ choco feature enable -n allowGlobalConfirmation | Out-Null
 
 
 # ----------------------------
-# 6) Install apps via Chocolatey
+# 7) Install apps via Chocolatey
 # ----------------------------
 Write-Host "Apps: installing via Chocolatey..." -ForegroundColor Yellow
 
@@ -178,7 +213,7 @@ if (-not (Get-Command choco -ErrorAction SilentlyContinue)) {
 
 
 # ----------------------------
-# 7) Configure qBittorrent (write config before first launch)
+# 8) Configure qBittorrent (write config before first launch)
 # ----------------------------
 Write-Host "Config: writing qBittorrent settings..." -ForegroundColor Yellow
 
@@ -257,7 +292,7 @@ Write-Host "qBittorrent config written to: $qbConfigFile" -ForegroundColor Green
 
 
 # ----------------------------
-# 8) Install uv and Python
+# 9) Install uv and Python
 # ----------------------------
 Write-Host "Apps: installing uv (Python manager)..." -ForegroundColor Yellow
 
@@ -282,7 +317,7 @@ uv python install
 
 
 # ----------------------------
-# 9) Install pnpm
+# 10) Install pnpm
 # ----------------------------
 Write-Host "Apps: installing pnpm..." -ForegroundColor Yellow
 
@@ -298,7 +333,7 @@ $env:Path =
 
 
 # ----------------------------
-# 10) Install opencode via pnpm
+# 11) Install opencode via pnpm
 # ----------------------------
 Write-Host "Apps: installing opencode-ai via pnpm..." -ForegroundColor Yellow
 
