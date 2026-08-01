@@ -200,7 +200,8 @@ $packages = @(
     "nodejs",
     "python",
     "vcredist140",
-    "ffmpeg"
+    "ffmpeg",
+    "powershell-core"
 )
 
 if (-not (Get-Command choco -ErrorAction SilentlyContinue)) {
