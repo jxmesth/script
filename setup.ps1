@@ -189,7 +189,6 @@ choco feature enable -n allowGlobalConfirmation | Out-Null
 Write-Host "Apps: installing via Chocolatey..." -ForegroundColor Yellow
 
 $packages = @(
-    "firefox",
     "winfsp",
     "rclone",
     "qbittorrent",
@@ -201,7 +200,6 @@ $packages = @(
     "nodejs",
     "python",
     "vcredist140",
-    "powertoys",
     "ffmpeg"
 )
 
