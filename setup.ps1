@@ -362,6 +362,7 @@ $packages = @(
     'vcredist140'
     'ffmpeg'
     'powershell-core'
+    'vlc'
 )
 
 if (Test-CommandAvailable -Name choco -EnsurePath $script:ToolPaths) {
