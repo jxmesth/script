@@ -309,8 +309,8 @@ New-Item -Path $defaultPersonalise -Force | Out-Null
 New-ItemProperty -Path $defaultPersonalise -Name AppsUseLightTheme -PropertyType DWord -Value 0 -Force | Out-Null
 New-ItemProperty -Path $defaultPersonalise -Name SystemUsesLightTheme -PropertyType DWord -Value 0 -Force | Out-Null
 
-# Restart Explorer so the dark mode setting is applied immediately.
-Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue; Start-Process explorer.exe
+Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue
+Start-Process explorer.exe
 
 # -----------------------------------------------------------------------------
 # 5. Edge policies
@@ -515,7 +515,7 @@ if (-not (Test-CommandAvailable -Name pnpm -EnsurePath $script:ToolPaths)) {
         Update-SessionEnvironment -EnsurePath $script:ToolPaths
     }
 }
-Add-Result 'Tools' 'pnpm' $(if (Test-CommandAvailable pnpm $script:ToolPaths) { 'OK' } else { 'WARN' })
+Add-Result 'Tools' 'pnpm' $(if (Test-CommandAvailable -Name pnpm -EnsurePath $script:ToolPaths) { 'OK' } else { 'WARN' })
 
 if (-not (Test-CommandAvailable -Name opencode -EnsurePath $script:ToolPaths)) {
     if (Test-CommandAvailable -Name npm -EnsurePath $script:ToolPaths) {
@@ -523,7 +523,7 @@ if (-not (Test-CommandAvailable -Name opencode -EnsurePath $script:ToolPaths)) {
         Update-SessionEnvironment -EnsurePath $script:ToolPaths
     }
 }
-Add-Result 'Tools' 'opencode' $(if (Test-CommandAvailable opencode $script:ToolPaths) { 'OK' } else { 'WARN' })
+Add-Result 'Tools' 'opencode' $(if (Test-CommandAvailable -Name opencode -EnsurePath $script:ToolPaths) { 'OK' } else { 'WARN' })
 
 if (-not (Test-CommandAvailable -Name oh-my-posh -EnsurePath $script:ToolPaths)) {
     try {
@@ -534,7 +534,7 @@ if (-not (Test-CommandAvailable -Name oh-my-posh -EnsurePath $script:ToolPaths))
         Add-Result 'Tools' 'Oh My Posh' 'FAIL' $_.Exception.Message
     }
 }
-Add-Result 'Tools' 'Oh My Posh' $(if (Test-CommandAvailable oh-my-posh $script:ToolPaths) { 'OK' } else { 'WARN' })
+Add-Result 'Tools' 'Oh My Posh' $(if (Test-CommandAvailable -Name oh-my-posh -EnsurePath $script:ToolPaths) { 'OK' } else { 'WARN' })
 
 # -----------------------------------------------------------------------------
 # 9. Google Drive for desktop
@@ -600,25 +600,44 @@ else {
 }
 
 # -----------------------------------------------------------------------------
-# 10. Chrome installation and sign-in policies
+# 10. Chrome installation, sign-in policies and DuckDuckGo shortcut
 # -----------------------------------------------------------------------------
 
-Write-Host 'Chrome: checking installation and applying sign-in policies...' -ForegroundColor Yellow
+Write-Host 'Chrome: checking installation and applying sign-in and search policies...' -ForegroundColor Yellow
 
-$chromeExe = "$env:ProgramFiles\Google\Chrome\Application\chrome.exe"
-if (-not (Test-Path $chromeExe)) {
+function Get-ChromeExecutable {
+    $possiblePaths = @(
+        "$env:ProgramFiles\Google\Chrome\Application\chrome.exe"
+        "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe"
+        "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe"
+    )
+
+    foreach ($path in $possiblePaths) {
+        if ($path -and (Test-Path $path)) {
+            return $path
+        }
+    }
+    return $null
+}
+
+$chromeExe = Get-ChromeExecutable
+if (-not $chromeExe) {
     $chromeInstalled = Install-FromWeb `
         -Name 'Google Chrome Enterprise' `
         -Url 'https://dl.google.com/dl/chrome/install/googlechromestandaloneenterprise64.msi' `
         -FileName 'googlechromestandaloneenterprise64.msi' `
         -Msi
 
-    if (-not $chromeInstalled) {
+    if ($chromeInstalled) {
+        Start-Sleep -Seconds 2
+        $chromeExe = Get-ChromeExecutable
+    }
+    else {
         Add-Result 'Applications' 'Google Chrome' 'FAIL' 'MSI installation failed'
     }
 }
 
-if (Test-Path $chromeExe) {
+if ($chromeExe) {
     Add-Result 'Applications' 'Google Chrome' 'OK' $chromeExe
 
     $chromePolicy = 'HKLM:\SOFTWARE\Policies\Google\Chrome'
@@ -638,17 +657,52 @@ if (Test-Path $chromeExe) {
     New-ItemProperty -Path $chromePolicy -Name HideFirstRunExperience -PropertyType DWord -Value 1 -Force | Out-Null
     Add-Result 'Chrome' 'Browser sign-in policy' 'OK' "BrowserSignin=$browserSigninValue"
 
+    try {
+        $duckDuckGoSiteSearch = @(
+            [ordered]@{
+                name                = 'DuckDuckGo'
+                shortcut            = 'ddg'
+                url                 = 'https://duckduckgo.com/?q={searchTerms}'
+                featured            = $false
+                allow_user_override = $true
+            }
+        )
+
+        $siteSearchSettings = $duckDuckGoSiteSearch | ConvertTo-Json -Depth 5 -Compress
+
+        New-ItemProperty `
+            -Path $chromePolicy `
+            -Name SiteSearchSettings `
+            -PropertyType String `
+            -Value $siteSearchSettings `
+            -Force `
+            -ErrorAction Stop | Out-Null
+
+        Add-Result 'Chrome' 'DuckDuckGo search shortcut' 'OK' 'Type ddg followed by Space or Tab'
+    }
+    catch {
+        Add-Result 'Chrome' 'DuckDuckGo search shortcut' 'FAIL' $_.Exception.Message
+    }
+
     $signInUrl = if ($GmailAddress) {
-        'https://accounts.google.com/AccountChooser?Email=' + [uri]::EscapeDataString($GmailAddress) + '&continue=https%3A%2F%2Fmail.google.com%2F'
+        'https://accounts.google.com/AccountChooser?Email=' +
+            [uri]::EscapeDataString($GmailAddress) +
+            '&continue=https%3A%2F%2Fmail.google.com%2F'
     }
     else {
         'https://accounts.google.com/'
     }
 
-    Start-Process $chromeExe -ArgumentList @('--new-window', $signInUrl)
+    try {
+        Start-Process -FilePath $chromeExe -ArgumentList @('--new-window', $signInUrl) -ErrorAction Stop
+        Add-Result 'Chrome' 'Google sign-in window' 'OK' 'Chrome started'
+    }
+    catch {
+        Add-Result 'Chrome' 'Google sign-in window' 'WARN' $_.Exception.Message
+    }
 }
 else {
-    Add-Result 'Applications' 'Google Chrome' 'FAIL' 'chrome.exe not found'
+    Add-Result 'Applications' 'Google Chrome' 'FAIL' 'chrome.exe not found after installation'
 }
 
 # -----------------------------------------------------------------------------
@@ -676,9 +730,22 @@ if (-not $SkipVerification) {
 
     $chromePolicy = 'HKLM:\SOFTWARE\Policies\Google\Chrome'
     Test-RegValue 'Verify' 'Chrome browser sign-in' $chromePolicy BrowserSignin $(if ($ForceChromeSignIn) { 2 } else { 1 })
+
     if ($GmailAddress) {
         Test-RegValue 'Verify' 'Chrome account restriction' $chromePolicy RestrictSigninToPattern $GmailAddress
     }
+
+    $expectedDuckDuckGoSiteSearch = @(
+        [ordered]@{
+            name                = 'DuckDuckGo'
+            shortcut            = 'ddg'
+            url                 = 'https://duckduckgo.com/?q={searchTerms}'
+            featured            = $false
+            allow_user_override = $true
+        }
+    ) | ConvertTo-Json -Depth 5 -Compress
+
+    Test-RegValue 'Verify' 'DuckDuckGo search shortcut' $chromePolicy SiteSearchSettings $expectedDuckDuckGoSiteSearch
 
     foreach ($command in @('choco', 'git', 'node', 'npm', 'uv', 'pnpm', 'opencode', 'oh-my-posh', 'rclone', 'ffmpeg')) {
         $found = Get-Command $command -ErrorAction SilentlyContinue
@@ -727,4 +794,5 @@ Write-Host "`nFirst-run action required:" -ForegroundColor Yellow
 Write-Host '1. Complete the Google sign-in opened in Chrome.' -ForegroundColor White
 Write-Host '2. Complete Google Drive authentication when its sign-in window appears.' -ForegroundColor White
 Write-Host '3. Subsequent Windows sign-ins will start Drive and resume synchronisation automatically.' -ForegroundColor White
+Write-Host '4. In Chrome, type ddg, press Space or Tab, and then enter your DuckDuckGo search.' -ForegroundColor White
 Write-Host "`n=== Setup complete. Restart Windows to fully apply protocol and service changes. ===`n" -ForegroundColor Green
