@@ -403,6 +403,61 @@ else {
 }
 
 # -----------------------------------------------------------------------------
+# 6a. Windows Terminal default profile set to PowerShell 7 (pwsh)
+# -----------------------------------------------------------------------------
+Write-Host 'Windows Terminal: setting default profile to PowerShell 7...' -ForegroundColor Yellow
+$pwshExe = Join-Path $env:ProgramFiles 'PowerShell\7\pwsh.exe'
+$pwshInstalled = (Test-CommandAvailable -Name pwsh -EnsurePath $script:ToolPaths) -or (Test-Path $pwshExe)
+if ($pwshInstalled) {
+    # Deterministic GUID that Windows Terminal generates for the PowerShell 7 (pwsh) dynamic profile.
+    $pwshProfileGuid = '{574e775e-4f2a-5b96-ac1e-a2962a402336}'
+    $wtSettingsPath = Join-Path $env:LOCALAPPDATA 'Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json'
+    try {
+        if (Test-Path $wtSettingsPath) {
+            # Windows Terminal has already generated its settings, so update in place.
+            Copy-Item $wtSettingsPath "$wtSettingsPath.bak" -Force
+            $wtSettings = Get-Content -Path $wtSettingsPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+            if ($wtSettings.PSObject.Properties.Name -contains 'defaultProfile') {
+                $wtSettings.defaultProfile = $pwshProfileGuid
+            }
+            else {
+                $wtSettings | Add-Member -MemberType NoteProperty -Name defaultProfile -Value $pwshProfileGuid -Force
+            }
+            $wtSettings | ConvertTo-Json -Depth 32 | Set-Content -Path $wtSettingsPath -Encoding UTF8 -ErrorAction Stop
+            Add-Result 'Windows Terminal' 'Default profile' 'OK' 'Set to PowerShell 7 (existing settings updated)'
+        }
+        else {
+            # Windows Terminal has not been launched yet, so seed a minimal settings file.
+            $wtSettingsDir = Split-Path $wtSettingsPath -Parent
+            New-Item -Path $wtSettingsDir -ItemType Directory -Force | Out-Null
+            $seedSettings = [ordered]@{
+                '$help'        = 'https://aka.ms/terminal-documentation'
+                '$schema'      = 'https://aka.ms/terminal-profiles-schema'
+                defaultProfile = $pwshProfileGuid
+                profiles       = [ordered]@{
+                    defaults = @{}
+                    list     = @(
+                        [ordered]@{
+                            guid   = $pwshProfileGuid
+                            name   = 'PowerShell'
+                            source = 'Windows.Terminal.PowershellCore'
+                        }
+                    )
+                }
+            }
+            $seedSettings | ConvertTo-Json -Depth 32 | Set-Content -Path $wtSettingsPath -Encoding UTF8 -ErrorAction Stop
+            Add-Result 'Windows Terminal' 'Default profile' 'OK' 'Seeded settings with PowerShell 7 default'
+        }
+    }
+    catch {
+        Add-Result 'Windows Terminal' 'Default profile' 'WARN' $_.Exception.Message
+    }
+}
+else {
+    Add-Result 'Windows Terminal' 'Default profile' 'SKIP' 'pwsh not available'
+}
+
+# -----------------------------------------------------------------------------
 # 7. qBittorrent configuration
 # -----------------------------------------------------------------------------
 
@@ -746,6 +801,25 @@ if (-not $SkipVerification) {
     ) | ConvertTo-Json -Depth 5 -Compress
 
     Test-RegValue 'Verify' 'DuckDuckGo search shortcut' $chromePolicy SiteSearchSettings $expectedDuckDuckGoSiteSearch
+
+    $wtSettingsPath = Join-Path $env:LOCALAPPDATA 'Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json'
+    if (Test-Path $wtSettingsPath) {
+        try {
+            $wtDefault = (Get-Content -Path $wtSettingsPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop).defaultProfile
+            if ($wtDefault -eq '{574e775e-4f2a-5b96-ac1e-a2962a402336}') {
+                Add-Result 'Verify' 'Windows Terminal default profile' 'OK' 'PowerShell 7 (pwsh)'
+            }
+            else {
+                Add-Result 'Verify' 'Windows Terminal default profile' 'WARN' "defaultProfile is $wtDefault"
+            }
+        }
+        catch {
+            Add-Result 'Verify' 'Windows Terminal default profile' 'WARN' $_.Exception.Message
+        }
+    }
+    else {
+        Add-Result 'Verify' 'Windows Terminal default profile' 'SKIP' 'settings.json not found'
+    }
 
     foreach ($command in @('choco', 'git', 'node', 'npm', 'uv', 'pnpm', 'opencode', 'oh-my-posh', 'rclone', 'ffmpeg')) {
         $found = Get-Command $command -ErrorAction SilentlyContinue
